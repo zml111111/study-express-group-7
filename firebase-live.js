@@ -95,10 +95,10 @@
       connectionTimer = setTimeout(() => {
         if (!wanted || lastPeople[auth?.currentUser?.uid]) return;
         if (connectionError) return message(connectionError);
-        if (!auth?.currentUser) message('Anonymous connection timed out. Check Firebase Authentication and your network.');
+        if (!auth?.currentUser) message('Still connecting anonymously. Try another network or browser if this persists.');
         else if (!connected) message('Firebase database connection timed out. Check your network.');
         else message('Still joining the live carriage. Check the database rules.');
-      }, 12000);
+      }, 30000);
       if (auth?.currentUser) { watch(); join(); }
     },
     stop() {
@@ -159,3 +159,4 @@
     }
   })();
 })();
+
