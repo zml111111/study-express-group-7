@@ -1,6 +1,5 @@
 // Live carriage presence. Visitors join anonymously; no email or password UI.
 (function () {
-  if (window.STUDY_EXPRESS_CLOUDBASE_CONFIG?.env) return;
   const $ = id => document.getElementById(id);
   const state = window.studyExpressState;
   const status = $('liveStatus');
