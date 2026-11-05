@@ -58,7 +58,14 @@ $('ticketsBtn').onclick=()=>{renderCollection();$('ticketsDialog').showModal()};
 $('demoPassBtn').onclick=()=>{state.fareLocked=false;localStorage.setItem('studyExpressFareLocked','false');$('fareDialog').close();show(1)};$('closeFareBtn').onclick=()=>$('fareDialog').close();
 renderCollection();
 function renderThoughts(){$('thoughtList').replaceChildren();state.thoughts.forEach((t,i)=>{const li=document.createElement('li');li.textContent=t+' ';const b=document.createElement('button');b.textContent='×';b.setAttribute('aria-label','Delete thought');b.style.cssText='border:0;background:none;color:#6a9;cursor:pointer';b.onclick=()=>{state.thoughts.splice(i,1);renderThoughts()};li.append(b);$('thoughtList').append(li)})}function addThought(){const v=$('thoughtInput').value.trim();if(!v)return;state.thoughts.push(v);$('thoughtInput').value='';renderThoughts()}$('addThought').onclick=addThought;$('thoughtInput').onkeydown=e=>{if(e.key==='Enter')addThought()};renderThoughts();
-let audioCtx,osc;$('soundBtn').onclick=()=>{if(osc){osc.stop();osc=null;audioCtx.close();$('soundLabel').textContent='Turn On';return}audioCtx=new(window.AudioContext||window.webkitAudioContext)();osc=audioCtx.createOscillator();const gain=audioCtx.createGain();osc.type='sine';osc.frequency.value=174;gain.gain.value=.012;osc.connect(gain).connect(audioCtx.destination);osc.start();$('soundLabel').textContent='Turn Off'};
+const ambientAudio=new Audio('ambient-journey.wav');ambientAudio.loop=true;ambientAudio.volume=.45;
+const soundBtn=$('soundBtn');
+soundBtn.setAttribute('aria-pressed','false');
+soundBtn.onclick=async()=>{
+ if(!ambientAudio.paused){ambientAudio.pause();ambientAudio.currentTime=0;$('soundLabel').textContent='Turn On';soundBtn.setAttribute('aria-pressed','false');return}
+ try{await ambientAudio.play();$('soundLabel').textContent='Turn Off';soundBtn.setAttribute('aria-pressed','true')}
+ catch(error){$('soundLabel').textContent='Audio unavailable';soundBtn.setAttribute('aria-pressed','false');console.error('Ambient audio could not play',error)}
+};
 $('shareBtn').onclick=()=>{$('shareUrl').value=PUBLIC_URL;$('shareDialog').showModal()};$('closeShare').onclick=()=>$('shareDialog').close();$('copyBtn').onclick=async()=>{await navigator.clipboard.writeText(PUBLIC_URL);$('copyBtn').textContent='Copied ✓';setTimeout(()=>$('copyBtn').textContent='Copy Link',1800)};
 
 let entered=!!state.profile;if(state.profile){$('profileName').value=state.profile.name;state.gender=state.profile.gender||'woman';document.querySelectorAll('[data-gender]').forEach(b=>{b.classList.toggle('active',b.dataset.gender===state.gender);b.setAttribute('aria-pressed',String(b.dataset.gender===state.gender))});applyProfile();$('accountBtn').textContent='Profile · '+state.profile.name}$('accountBtn').onclick=()=>$('profileBtn').onclick();$('loginDialog').addEventListener('cancel',e=>{if(!entered)e.preventDefault()});show(0);if(!entered){$('loginDialog').querySelector('h2').textContent='Before You Board';$('loginBtn').textContent='Enter the Station →';$('loginDialog').showModal()}
