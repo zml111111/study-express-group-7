@@ -9,7 +9,8 @@
   let wanted = false;
   let auth, db, presence, connected = false, joining = false, watching = false;
   let lastPeople = {};
-  let connectionTimer, connectionError = "";
+  let connectionTimer, connectionError = "", heartbeatTimer, serverOffset = 0;
+  const ACTIVE_WINDOW_MS = 60000;
 
   function message(text) { status.textContent = text; }
   function elapsed(startedAt) {
@@ -18,7 +19,8 @@
   function render() {
     list.replaceChildren();
     const people = Object.entries(lastPeople)
-      .filter(([, person]) => person && typeof person.name === 'string');
+      .filter(([, person]) => person && typeof person.name === 'string' &&
+        Number(person.lastSeenAt) > Date.now() + serverOffset - ACTIVE_WINDOW_MS);
     const ownId = auth?.currentUser?.uid;
     const ownOnline = people.some(([uid]) => uid === ownId);
     const others = people.filter(([uid]) => uid !== ownId);
@@ -64,10 +66,18 @@
       await ref.set({
         name: String(state.profile?.name || 'Traveler').slice(0, 16),
         startedAt: Date.now() - (state.total - state.remaining) * 1000,
+        lastSeenAt: firebase.database.ServerValue.TIMESTAMP,
         seat: state.seat,
         scene: state.scene
       });
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (wanted && connected && presence === ref)
+          ref.child('lastSeenAt').set(firebase.database.ServerValue.TIMESTAMP)
+            .catch(error => console.warn('Study Express heartbeat:', error));
+      }, 15000);
       if (!wanted) {
+        clearInterval(heartbeatTimer);
         await ref.remove();
         await ref.onDisconnect().cancel();
         if (presence === ref) presence = null;
@@ -79,6 +89,7 @@
     } finally { joining = false; }
   }
   async function leave() {
+    clearInterval(heartbeatTimer);
     if (!presence) return;
     const ref = presence;
     presence = null;
@@ -95,7 +106,7 @@
       connectionTimer = setTimeout(() => {
         if (!wanted || lastPeople[auth?.currentUser?.uid]) return;
         if (connectionError) return message(connectionError);
-        if (!auth?.currentUser) message('Still connecting anonymously. Try another network or browser if this persists.');
+        if (!auth?.currentUser) message('Anonymous sign-in has not reached Firebase. Try mobile data or another browser, then reload this page.');
         else if (!connected) message('Firebase database connection timed out. Check your network.');
         else message('Still joining the live carriage. Check the database rules.');
       }, 30000);
@@ -134,7 +145,14 @@
       await load(base + 'firebase-database-compat.js');
       firebase.initializeApp(config);
       auth = firebase.auth();
+      // Guest identities only need to live for this page; avoid mobile storage restrictions.
+      try { await auth.setPersistence(firebase.auth.Auth.Persistence.NONE); }
+      catch (error) { console.warn("Study Express guest storage:", error); }
       db = firebase.database();
+      db.ref('.info/serverTimeOffset').on('value', snapshot => {
+        serverOffset = Number(snapshot.val()) || 0;
+        if (wanted && watching) render();
+      });
       db.ref('.info/connected').on('value', snapshot => {
         connected = snapshot.val() === true;
         if (connected) join();
@@ -145,7 +163,7 @@
           if (wanted) { watch(); join(); }
         } else {
           auth.signInAnonymously().catch(error => {
-            connectionError = 'Anonymous connection failed (' + (error.code || 'authentication') + '). Enable Anonymous in Firebase.';
+            connectionError = 'Anonymous sign-in failed (' + (error.code || 'network') + '). Check Firebase Authentication or try another network.';
             if (wanted) message(connectionError);
             console.warn('Study Express anonymous sign-in:', error);
           });
